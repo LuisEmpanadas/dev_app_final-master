@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "494009922494",
+    "project_id": "proyectoramon-599cd",
+    "storage_bucket": "proyectoramon-599cd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:494009922494:android:34460f61292baada64bfef",
+        "android_client_info": {
+          "package_name": "com.example.copylogin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_Hi6Ii4Xiq0l_gEzOuz5gUanT-skKSG0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
