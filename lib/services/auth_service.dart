@@ -1,14 +1,32 @@
-class AuthService {
-  // Simula una llamada a un servidor
-  Future<bool> login(String email, String password) async {
-    // Simula latencia de red
-    await Future.delayed(const Duration(seconds: 2));
+import 'package:firebase_auth/firebase_auth.dart';
 
-    // Validación simulada (luego esto vendría del backend)
-    if (email == 'admin@test.com' && password == '123456') {
-      return true;
-    } else {
-      return false;
-    }
+class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Usuario actual
+  User? get currentUser => _auth.currentUser;
+
+  // Stream para escuchar cambios de sesión
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Iniciar sesión con email y contraseña reales de Firebase Auth
+  Future<UserCredential> login(String email, String password) async {
+    return await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  // Registrar nuevo usuario
+  Future<UserCredential> register(String email, String password) async {
+    return await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  // Cerrar sesión
+  Future<void> logout() async {
+    await _auth.signOut();
   }
 }

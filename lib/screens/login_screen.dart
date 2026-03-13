@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -9,118 +10,297 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _authService = AuthService();
+  final _formKey = GlobalKey<FormState>();
 
-class _LoginScreenState extends State<LoginScreen> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final authService = AuthService();
-  
-  bool isLoading = false;
-  
-  //Metodo login que se encarga de validar los campos, mostrar un loading mientras se hace la petición y manejar la respuesta para navegar a HomeScreen o mostrar un error.
-  Future<void> login() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _isRegisterMode = false;
 
-     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Completa todos los campos')),
-      );
-      return;
-    }
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
 
-   setState(() => isLoading = true);
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _animController.forward();
+  }
 
-   try {
-      final isValid = await authService.login(email, password);
+  @override
+  void dispose() {
+    _animController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
-      if (!mounted) return;
-      // Si el login es exitoso, navegamos a HomeScreen. Si no, mostramos un mensaje de error.
-      if (isValid) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      if (_isRegisterMode) {
+        await _authService.register(
+          _emailController.text.trim(),
+          _passwordController.text.trim(),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuario o contraseña inválidos')),
+        await _authService.login(
+          _emailController.text.trim(),
+          _passwordController.text.trim(),
         );
       }
-    } catch (e) {
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      final message = _mapFirebaseError(e.code);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error de conexión')),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Error inesperado. Intenta de nuevo.'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
-  
 
-  //Aquí se construye la interfaz visual.
+  String _mapFirebaseError(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'No existe una cuenta con ese correo.';
+      case 'wrong-password':
+        return 'Contraseña incorrecta.';
+      case 'invalid-credential':
+        return 'Correo o contraseña inválidos.';
+      case 'email-already-in-use':
+        return 'Este correo ya está registrado.';
+      case 'weak-password':
+        return 'La contraseña debe tener al menos 6 caracteres.';
+      case 'invalid-email':
+        return 'El correo no tiene un formato válido.';
+      case 'too-many-requests':
+        return 'Demasiados intentos. Espera un momento.';
+      default:
+        return 'Error: $code';
+    }
+  }
+
+  void _toggleMode() {
+    setState(() => _isRegisterMode = !_isRegisterMode);
+    _animController.reset();
+    _animController.forward();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
-       body: LayoutBuilder(  // Esto nos permite que sea responsive y se adapte a diferentes tamaños de pantalla.
-        builder: (context, constraints) {
-          return SingleChildScrollView(  // Esto permite que el contenido este centrado y no ocurra un overflow cuando el teclado aparezca.
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth > 600 ? 400 : double.infinity,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Bienvenido',
-                        style: Theme.of(context).textTheme.headlineMedium,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [scheme.primary, scheme.primaryContainer],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Card(
+                      elevation: 12,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                      const SizedBox(height: 30),
-                      TextField(
-                        controller: emailController,
-                        decoration: const InputDecoration(
-                          labelText: 'Email',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: passwordController,
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
-                          border: OutlineInputBorder(),
-                        ),
-                        obscureText: true,
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: isLoading ? null : login,
-                          child: isLoading
-                              ? const  SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Icono
+                              Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  color: scheme.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.lock_outline_rounded,
+                                  color: Colors.white,
+                                  size: 36,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                _isRegisterMode ? 'Crear cuenta' : 'Bienvenido',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                _isRegisterMode
+                                    ? 'Regístrate para continuar'
+                                    : 'Inicia sesión para continuar',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: Colors.grey),
+                              ),
+                              const SizedBox(height: 32),
+
+                              // Email
+                              TextFormField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                decoration: InputDecoration(
+                                  labelText: 'Correo electrónico',
+                                  prefixIcon: const Icon(Icons.email_outlined),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                )
-                              : const Text('Ingresar'),
+                                ),
+                                validator: (val) {
+                                  if (val == null || val.trim().isEmpty) {
+                                    return 'Ingresa tu correo';
+                                  }
+                                  if (!val.contains('@')) {
+                                    return 'Correo no válido';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Contraseña
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: _obscurePassword,
+                                decoration: InputDecoration(
+                                  labelText: 'Contraseña',
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                    onPressed: () => setState(() =>
+                                        _obscurePassword = !_obscurePassword),
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                validator: (val) {
+                                  if (val == null || val.isEmpty) {
+                                    return 'Ingresa tu contraseña';
+                                  }
+                                  if (_isRegisterMode && val.length < 6) {
+                                    return 'Mínimo 6 caracteres';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 28),
+
+                              // Botón principal
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _submit,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: scheme.primary,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Text(
+                                          _isRegisterMode
+                                              ? 'Registrarme'
+                                              : 'Iniciar sesión',
+                                          style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Cambiar modo
+                              TextButton(
+                                onPressed: _toggleMode,
+                                child: Text(
+                                  _isRegisterMode
+                                      ? '¿Ya tienes cuenta? Inicia sesión'
+                                      : '¿No tienes cuenta? Regístrate',
+                                  style:
+                                      TextStyle(color: scheme.primary),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
