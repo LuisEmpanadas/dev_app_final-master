@@ -53,8 +53,6 @@ const _cities = {
 };
 
 class WeatherService {
-  // API Key gratuita de OpenWeatherMap (free tier: 60 calls/min, no tarjeta requerida)
-  // Reemplaza esta key con la tuya de https://openweathermap.org/api
   static const String _apiKey = '462cff4db9944a729763fb7554b11ca8';
   static const String _baseUrl =
       'https://api.openweathermap.org/data/2.5/weather';

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 
@@ -38,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _animController.forward();
+    _requestStoragePermission();
   }
 
   @override
@@ -92,6 +95,43 @@ class _LoginScreenState extends State<LoginScreen>
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _requestStoragePermission() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+
+    final status = await Permission.storage.status;
+    if (status.isGranted) return;
+
+    final result = await Permission.storage.request();
+    if (result.isDenied || result.isPermanentlyDenied) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Permiso de almacenamiento'),
+            content: const Text(
+              'La aplicación necesita acceso al almacenamiento del dispositivo para funcionar correctamente. Por favor, otorga el permiso.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Cerrar'),
+              ),
+              if (result.isPermanentlyDenied)
+                TextButton(
+                  onPressed: () => openAppSettings(),
+                  child: const Text('Abrir ajustes'),
+                ),
+            ],
+          );
+        },
+      );
     }
   }
 
@@ -174,18 +214,14 @@ class _LoginScreenState extends State<LoginScreen>
                               const SizedBox(height: 20),
                               Text(
                                 _isRegisterMode ? 'Crear cuenta' : 'Bienvenido',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
+                                style: Theme.of(context).textTheme.headlineSmall
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               Text(
                                 _isRegisterMode
                                     ? 'Regístrate para continuar'
                                     : 'Inicia sesión para continuar',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
+                                style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(color: Colors.grey),
                               ),
                               const SizedBox(height: 32),
@@ -226,8 +262,12 @@ class _LoginScreenState extends State<LoginScreen>
                                           ? Icons.visibility_outlined
                                           : Icons.visibility_off_outlined,
                                     ),
-                                    onPressed: () => setState(() =>
-                                        _obscurePassword = !_obscurePassword),
+                                    onPressed:
+                                        () => setState(
+                                          () =>
+                                              _obscurePassword =
+                                                  !_obscurePassword,
+                                        ),
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -258,23 +298,25 @@ class _LoginScreenState extends State<LoginScreen>
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : Text(
-                                          _isRegisterMode
-                                              ? 'Registrarme'
-                                              : 'Iniciar sesión',
-                                          style: const TextStyle(
+                                  child:
+                                      _isLoading
+                                          ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                          : Text(
+                                            _isRegisterMode
+                                                ? 'Registrarme'
+                                                : 'Iniciar sesión',
+                                            style: const TextStyle(
                                               fontSize: 16,
-                                              fontWeight: FontWeight.w600),
-                                        ),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -286,8 +328,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   _isRegisterMode
                                       ? '¿Ya tienes cuenta? Inicia sesión'
                                       : '¿No tienes cuenta? Regístrate',
-                                  style:
-                                      TextStyle(color: scheme.primary),
+                                  style: TextStyle(color: scheme.primary),
                                 ),
                               ),
                             ],
